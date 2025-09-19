@@ -70,12 +70,12 @@ jobs:
           echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      #- name: Setup NuGet
-      #  uses: nuget/setup-nuget@v2
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
 
-      #- name: Restore NuGet packages
-      #  run: |
-      #    nuget restore ExplorerBlurMica.sln
+      - name: Restore NuGet packages
+        run: |
+          nuget restore ExplorerBlurMica.sln
 
       - name: Build amd64
         if: github.event.inputs.config == ''
