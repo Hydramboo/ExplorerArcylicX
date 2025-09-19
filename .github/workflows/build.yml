@@ -1,0 +1,98 @@
+# references:
+# https://trstringer.com/github-actions-multiline-strings/
+# https://trstringer.com/github-actions-create-release-upload-artifacts/
+# https://github.com/Speedy37/sws/blob/444c67157a98652c4e7ffd3b6d6bbfb664071926/.github/workflows/msbuild.yml
+# https://stackoverflow.com/questions/58886293/getting-current-branch-and-commit-hash-in-github-action
+
+name: Build
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit'
+        required: false
+      config:
+        description: 'Configuration'
+        required: false
+      build_dir:
+        description: 'Build dir'
+        required: false
+
+env:
+  SOLUTION_FILE_PATH: .
+  BUILD_CONFIGURATION: Release
+
+jobs:
+  build:
+    runs-on: windows-2025
+
+    steps:
+      - name: Print inputs
+        shell: bash
+        run: |
+          echo "ref: ${{ github.event.inputs.ref }}"
+          echo "config: ${{ github.event.inputs.config }}"
+          echo "build_dir: ${{ github.event.inputs.build_dir }}"
+
+      - name: Checkout latest build and submodules
+        uses: actions/checkout@v4
+        if: github.event.inputs.ref == ''
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Checkout specific build and submodules
+        uses: actions/checkout@v4
+        if: github.event.inputs.ref != ''
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Declare some variables
+        id: vars
+        shell: bash
+        run: |
+          echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: |
+          nuget restore ExplorerBlurMica.sln
+
+      - name: Build EP amd64
+        if: github.event.inputs.config == ''
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: |
+          msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=amd64 ${{env.SOLUTION_FILE_PATH}}
+
+      - name: Create expected build directory
+        if: github.event.inputs.build_dir != ''
+        shell: bash
+        run: |
+          mkdir build
+          cp -r ${{ github.event.inputs.build_dir }}/Release build/Release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ep_bin_multi_${{ steps.vars.outputs.sha_short }}_${{ steps.vars.outputs.branch }}
+          path: |
+            build/Release
